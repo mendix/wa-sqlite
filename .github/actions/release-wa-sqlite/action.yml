@@ -1,0 +1,110 @@
+# This is a utility action that can be triggered by other workflows
+# It does the following things:
+#  1. Creates a release notes file (NOTES) that contain the release notes of the rhashimoto/wa-sqlite
+#     repository of the passed version and finds the corresponding tag name
+#  2. Checks out the current repository using the same revision as the tag name of that released version
+#  3. Creates a branch with the name `release/[tag name]`
+#  4. Builds wa-sqlite with environments web, worker and node (this is the reason we do this)
+#  5. Applies the overlay patch with changes for the module
+#  6. Commits the build output in the dist folder in that branch
+#  7. Creates a release on this repository using this last commit
+#
+# NOTE: this script will do a new clone in a separate folder as it will checkout the revision of the specified release
+# to create a new release on.
+# NOTE 2: this will only build the async version of the module
+
+name: Release wa-sqlite action
+
+inputs:
+  em_version:
+    description: 'EMSDK version'
+    default: '3.1.47'
+    required: false
+    type: string
+  wa_sqlite_version:
+    description: 'The version of wa-sqlite to release'
+    required: true
+    type: string
+  script_dir:
+    description: 'The directory where the script resides to find the overlay patch'
+    required: true
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+      # Check out wa-sqlite
+  - uses: actions/checkout@v4
+    with:
+      path: wa-sqlite
+
+  - name: Find latest wa-sqlite release
+    shell: bash
+    id: prepare
+    run: |
+      gh release view -R rhashimoto/wa-sqlite --json tagName,body ${{inputs.wa_sqlite_version}} > latest.json
+
+      export TAGNAME=`jq -r .tagName latest.json`
+      echo "TAGNAME=$TAGNAME" >> "$GITHUB_OUTPUT"
+
+      export SQLITE_VERSION=`grep "^SQLITE_VERSION = .*" wa-sqlite/Makefile | cut -d = -f 2 | xargs`
+
+      echo "Node enabled wa-sqlite build" >> NOTES
+      echo "## Dependency information" >> NOTES
+      echo "* SQLITE version: $SQLITE_VERSION" >> NOTES
+      echo "* rhashimoto/wa-sqlite: $TAGNAME" >> NOTES
+      jq -r .body latest.json >> NOTES    
+
+      cd wa-sqlite
+      git remote add upstream https://github.com/rhashimoto/wa-sqlite.git
+      git fetch --tags upstream
+      export COMMIT_HASH=`git show-ref -s upstream $TAGNAME`
+
+      echo "Found latest release '$TAGNAME' on rhashimoto/wa-sqlite, based on hash '$COMMIT_HASH'".
+
+      git checkout $COMMIT_HASH
+      git checkout -B release/$TAGNAME
+
+  # Install EMSDK
+  - name: Setup Emscripten
+    id: cache-system-libraries
+    uses: actions/cache@v3
+    with:
+      path: ${{env.EM_CACHE_FOLDER}}
+      key: ${{inputs.em_version}}-${{runner.os}}
+  - uses: mymindstorm/setup-emsdk@v12
+    with:
+      version: ${{inputs.em_version}}
+      actions-cache-folder: ${{env.EM_CACHE_FOLDER}}
+  - run: emcc -v
+    shell: bash
+
+  # Build
+  - name: Build wa-sqlite
+    working-directory: ./wa-sqlite
+    shell: bash
+    run: |
+      make clean dist/wa-sqlite-async.mjs clean-deps clean-tmp clean-cache "EMFLAGS_EXTRA=-s ENVIRONMENT=web,worker,node"
+
+  # Apply patch to amend the library
+  - name: Apply overlay patch
+    working-directory: ./wa-sqlite
+    shell: bash
+    run: git apply ${{inputs.script_dir}}/.github/overlay.patch
+
+  # Commit dist
+  - name: Commit dist
+    working-directory: ./wa-sqlite
+    shell: bash
+    run: |
+      git config --global user.name "Release Action"
+      git config --global user.email "no-email@mendix.com"
+      git add *
+      git commit -m "Updated build output"
+      git push -f -u origin "release/${{steps.prepare.outputs.TAGNAME}}"
+
+  # Package
+  - name: Create release
+    working-directory: ./wa-sqlite
+    shell: bash
+    run: gh release create -R $GITHUB_REPOSITORY "${{steps.prepare.outputs.TAGNAME}}" -t "${{inputs.wa_sqlite_version}}" --target "release/${{steps.prepare.outputs.TAGNAME}}" --notes-file ../NOTES

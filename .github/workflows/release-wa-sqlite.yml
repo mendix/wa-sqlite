@@ -1,0 +1,45 @@
+# This is a utility workflow that can be triggered by other workflows
+# It does the following things:
+#  1. Creates a release notes file (NOTES) that contain the release notes of the rhashimoto/wa-sqlite
+#     repository of the passed version and finds the corresponding tag name
+#  2. Checks out the current repository using the same revision as the tag name of that released version
+#  3. Creates a branch with the name `release/[tag name]`
+#  4. Builds wa-sqlite with environments web, worker and node (this is the reason we do this)
+#  5. Commits the build output in the dist folder in that branch
+#  6. Creates a release on this repository using this last commit
+
+name: Release wa-sqlite workflow
+
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      em_version:
+        description: 'EMSDK version'
+        default: '3.1.47'
+        required: true
+        type: string
+      wa_sqlite_version:
+        description: 'The version of wa-sqlite to release'
+        required: true
+        type: string
+
+env:
+  EM_CACHE_FOLDER: 'emsdk-cache'
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+        # Check out wa-sqlite
+    - uses: actions/checkout@v4
+      with:
+        path: build
+        sparse-checkout: .github
+
+    - uses: ./build/.github/actions/release-wa-sqlite
+      with:
+        em_version: ${{inputs.em_version}}
+        wa_sqlite_version: ${{inputs.wa_sqlite_version}}
+        script_dir: $GITHUB_WORKSPACE/build

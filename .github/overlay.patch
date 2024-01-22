@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+new file mode 100644
+index 0000000..3d73180
+--- /dev/null
++++ b/dist/index.js
+@@ -0,0 +1 @@
++export * from "./wa-sqlite-async.mjs";
+diff --git a/dist/module.js b/dist/module.js
+new file mode 100644
+index 0000000..3d73180
+--- /dev/null
++++ b/dist/module.js
+@@ -0,0 +1 @@
++export * from "./wa-sqlite-async.mjs";
+diff --git a/package.json b/package.json
+index 09372ca..9edf2f8 100644
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,7 @@
+   "name": "wa-sqlite",
+   "version": "0.9.11",
+   "type": "module",
++  "license": "MIT",
+   "main": "src/sqlite-api.js",
+   "types": "src/types/index.d.ts",
+   "files": [

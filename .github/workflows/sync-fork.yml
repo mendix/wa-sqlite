@@ -1,0 +1,66 @@
+# This is a basic workflow that is triggered every day at 1 am to sync the repository with upstream (only when there are new commits on upstream) 
+# and to trigger a new build (only when upstream has a new build too).
+
+name: sync fork
+
+on:
+  workflow_dispatch:
+  schedule:
+    # schedule job daily at 1 am
+    - cron: "0 1 * * *"
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  EM_CACHE_FOLDER: 'emsdk-cache'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: sync
+          fetch-depth: 50
+
+      - name: Prepare sync
+        id: prepare
+        working-directory: ./sync
+        run: |
+          git config --global user.name "Release Action"
+          git config --global user.email "no-email@mendix.com"
+          git remote add upstream https://github.com/rhashimoto/wa-sqlite.git
+          git fetch upstream
+          export UPSTREAM_HEAD=`git rev-parse upstream/master`
+          export LOCAL_HISTORY=`git rev-list -n 50 --first-parent master | tr '\n' ','`
+
+          echo "Upstream repository's head is at: $UPSTREAM_HEAD. Local history has: $LOCAL_HISTORY"
+
+          echo "UPSTREAM_HEAD=$UPSTREAM_HEAD" >> "$GITHUB_OUTPUT"
+          echo "LOCAL_HISTORY=$LOCAL_HISTORY" >> "$GITHUB_OUTPUT"
+
+      - name: Do sync when needed
+        if: ${{!contains(steps.prepare.outputs.LOCAL_HISTORY, steps.prepare.outputs.UPSTREAM_HEAD)}}
+        working-directory: ./sync
+        run: |
+          git pull --rebase upstream master
+          git remote remove upstream
+          git push -f
+
+      - name: Lookup release information
+        id: info
+        working-directory: ./sync
+        run: |
+          export ORIGINAL_LATEST=`gh release view -R rhashimoto/wa-sqlite --json tagName --jq .tagName`
+          export OUR_LATEST=`gh release view -R $GITHUB_REPOSITORY --json tagName --jq .tagName`
+
+          echo "Our repository has latest version '$OUR_LATEST', original repository has latest version '$ORIGINAL_LATEST'"
+
+          echo "ORIGINAL_LATEST=$ORIGINAL_LATEST" >> "$GITHUB_OUTPUT"
+          echo "OUR_LATEST=$OUR_LATEST" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger release when needed
+        if: ${{steps.info.outputs.OUR_LATEST != steps.info.outputs.ORIGINAL_LATEST}}
+        uses: ./sync/.github/actions/release-wa-sqlite
+        with:
+          wa_sqlite_version: ${{steps.info.outputs.ORIGINAL_LATEST}}
+          script_dir: $GITHUB_WORKSPACE/sync

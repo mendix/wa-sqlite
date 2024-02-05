@@ -92,14 +92,31 @@ runs:
     shell: bash
     run: git apply ${{inputs.script_dir}}/.github/overlay.patch
 
-  # Commit dist
-  - name: Commit dist
+  # Run babel to make the library compliant
+  - name: Setup node
+    uses: actions/setup-node@v4
+    with:
+      node-version: 18
+
+  - name: Make library ES5 compliant
     working-directory: ./wa-sqlite
     shell: bash
     run: |
+      npm i @babel/core @babel/cli @babel/preset-env
+      npx babel --no-babelrc --presets=@babel/preset-env --compact true --keep-file-extension dist --out-dir out/dist
+      cp out/dist/* dist
+      rm -rf out
+      npm uninstall @babel/core @babel/cli @babel/preset-env
+
+  # Commit changes
+  - name: Commit changes
+    working-directory: ./wa-sqlite
+    shell: bash
+    run: |
+      git config --global advice.addIgnoredFile false
       git config --global user.name "Release Action"
       git config --global user.email "no-email@mendix.com"
-      git add *
+      git add * || true
       git commit -m "Updated build output"
       git push -f -u origin "release/${{steps.prepare.outputs.TAGNAME}}"
 

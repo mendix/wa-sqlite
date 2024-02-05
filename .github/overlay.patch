@@ -24,3 +24,17 @@ index 09372ca..9edf2f8 100644
    "main": "src/sqlite-api.js",
    "types": "src/types/index.d.ts",
    "files": [
+diff --git a/.gitignore b/.gitignore
+index 2ab3cab..7626a2f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -15,4 +15,6 @@
+ /tmp
+ 
+ /dist-xl.zip
+-/dist-xl
+\ No newline at end of file
++/dist-xl
++
++/node_modules
+\ No newline at end of file

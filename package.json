@@ -1,7 +1,8 @@
 {
-  "name": "wa-sqlite",
+  "name": "@mendix/wa-sqlite",
   "version": "0.9.11",
   "type": "module",
+  "license": "MIT",
   "main": "src/sqlite-api.js",
   "types": "src/types/index.d.ts",
   "files": [

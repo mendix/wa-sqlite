@@ -25,6 +25,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      additional_notes:
+        description: 'Additional release notes'
+        default: '## Mendix wa-sqlite specifics\n'
+        required: false
+        type: string
 
 env:
   EM_CACHE_FOLDER: 'emsdk-cache'
@@ -53,6 +58,7 @@ jobs:
         echo "## Dependency information" >> NOTES
         echo "* SQLite version: $SQLITE_VERSION" >> NOTES
         echo "* rhashimoto/wa-sqlite: $TAGNAME" >> NOTES
+        echo "${{inputs.mendix_wa_sqlite_version}}" >> NOTES
         jq -r .body latest.json >> NOTES
 
         cd wa-sqlite
